@@ -116,29 +116,58 @@ const getMe = asyncHandler(async (req, res) => {
 // @access  Private
 const updateProfile = asyncHandler(async (req, res) => {
   try {
-    let user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const user = await User.findById(req.user.id);
 
-    // 🗑 Delete old image if it exists
-    if (user.avatarPublicId && user.avatar?.includes("res.cloudinary.com")) {
-      await cloudinary.uploader.destroy(user.avatarPublicId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
     }
 
-    // ✏️ Update username and location
+    // ✏️ Update basic fields
     user.username = req.body.username || user.username;
     user.location = req.body.location || user.location;
 
-    // 🆕 Upload new avatar
-    if (req.file && req.file.path) {
+    // 🖼️ Update avatar if new file uploaded
+    if (req.file) {
+
+      // 🗑 Delete old cloudinary image
+      if (
+        user.avatarPublicId &&
+        user.avatar &&
+        user.avatar.includes("res.cloudinary.com")
+      ) {
+        try {
+          await cloudinary.uploader.destroy(user.avatarPublicId);
+        } catch (err) {
+          console.log("Cloudinary delete error:", err.message);
+        }
+      }
+
+      // ✅ Save new image
       user.avatar = req.file.path;
-      user.avatarPublicId = req.file.filename;
+
+      // ✅ Works in both local and render
+      user.avatarPublicId =
+        req.file.filename ||
+        req.file.public_id ||
+        null;
     }
 
     const updatedUser = await user.save();
-    res.json({ user: updatedUser });
+
+    res.status(200).json({
+      success: true,
+      user: updatedUser,
+    });
 
   } catch (e) {
-    res.status(400).json({ message: e.message });
+    console.log("Update profile error:", e);
+
+    res.status(500).json({
+      success: false,
+      message: e.message || "Server Error",
+    });
   }
 });
 
